@@ -5,4 +5,4 @@
 
 3) docker内可以通过该方式获取container id （cat /proc/self/cgroup | grep -o  -e "docker-.*.scope" | head -n 1 | sed "s/docker-\(.*\).scope/\\1/"）
 
-4) 因为启动时指定的前缀、image名字、端口都是提前知道的，所以查询etcd，一下就可以拿到所有的某个服务，又因为container内部也能获得container id，这样也就知道了自己对外开放的ip和端口
+4) 因为启动时指定的前缀、image名字、端口都是提前知道的，所以查询etcd，一下就可以拿到某个端口的所有服务，又因为container内部也能获得container id的，这样也就知道了自己对外开放的ip和端口
