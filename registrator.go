@@ -213,9 +213,6 @@ func getLocalIp(prefix string) (string, error) {
 			}
 
 			ipv4 := ip.To4().String()
-
-			log.Println(ipv4)
-
 			if strings.HasPrefix(ipv4, prefix) {
 				return ipv4, nil
 			}
