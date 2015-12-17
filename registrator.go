@@ -11,7 +11,8 @@ import (
 
 	dockerapi "github.com/fsouza/go-dockerclient"
 	"github.com/gliderlabs/pkg/usage"
-	"github.com/gliderlabs/registrator/bridge"
+	"github.com/wangyuntao/registrator/bridge"
+	"net"
 )
 
 var Version string
@@ -19,14 +20,15 @@ var Version string
 var versionChecker = usage.NewChecker("registrator", Version)
 
 var hostIp = flag.String("ip", "", "IP for ports mapped to the host")
+var hostIpPrefix = flag.String("ipPrefix", "", "获取以此为前缀的ip")
 var internal = flag.Bool("internal", false, "Use internal ports instead of published ones")
-var refreshInterval = flag.Int("ttl-refresh", 0, "Frequency with which service TTLs are refreshed")
-var refreshTtl = flag.Int("ttl", 0, "TTL for services (default is no expiry)")
+var refreshInterval = flag.Int("ttl-refresh", 30, "Frequency with which service TTLs are refreshed")
+var refreshTtl = flag.Int("ttl", 60, "TTL for services (default is no expiry)")
 var forceTags = flag.String("tags", "", "Append tags for all registered services")
-var resyncInterval = flag.Int("resync", 0, "Frequency with which services are resynchronized")
+var resyncInterval = flag.Int("resync", 120, "Frequency with which services are resynchronized")
 var deregister = flag.String("deregister", "always", "Deregister exited services \"always\" or \"on-success\"")
-var retryAttempts = flag.Int("retry-attempts", 0, "Max retry attempts to establish a connection with the backend. Use -1 for infinite retries")
-var retryInterval = flag.Int("retry-interval", 2000, "Interval (in millisecond) between retry-attempts.")
+var retryAttempts = flag.Int("retry-attempts", -1, "Max retry attempts to establish a connection with the backend. Use -1 for infinite retries")
+var retryInterval = flag.Int("retry-interval", 2, "Interval between retry-attempts.")
 var cleanup = flag.Bool("cleanup", false, "Remove dangling services")
 
 func getopt(name, def string) string {
@@ -71,6 +73,14 @@ func main() {
 
 	if *hostIp != "" {
 		log.Println("Forcing host IP to", *hostIp)
+	}
+
+	var err error
+	if *hostIpPrefix != "" {
+		*hostIp, err = getLocalIp(*hostIpPrefix)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	if (*refreshTtl == 0 && *refreshInterval > 0) || (*refreshTtl > 0 && *refreshInterval == 0) {
@@ -120,7 +130,7 @@ func main() {
 			assert(err)
 		}
 
-		time.Sleep(time.Duration(*retryInterval) * time.Millisecond)
+		time.Sleep(time.Duration(*retryInterval) * time.Second)
 		attempt++
 	}
 
@@ -179,4 +189,38 @@ func main() {
 
 	close(quit)
 	log.Fatal("Docker event loop closed") // todo: reconnect?
+}
+
+func getLocalIp(prefix string) (string, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+
+	for _, i := range ifaces {
+		addrs, err := i.Addrs()
+		if err != nil {
+			return "", err
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+
+			ipv4 := ip.To4().String()
+
+			log.Println(ipv4)
+
+			if strings.HasPrefix(ipv4, prefix) {
+				return ipv4, nil
+			}
+		}
+	}
+
+	return "", errors.New("没找到想要的ip！" + prefix)
 }

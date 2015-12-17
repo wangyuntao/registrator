@@ -10,7 +10,7 @@ import (
 	"strconv"
 
 	etcd2 "github.com/coreos/go-etcd/etcd"
-	"github.com/gliderlabs/registrator/bridge"
+	"github.com/wangyuntao/registrator/bridge"
 	etcd "gopkg.in/coreos/go-etcd.v0/etcd"
 )
 
@@ -23,7 +23,7 @@ type Factory struct{}
 func (f *Factory) New(uri *url.URL) bridge.RegistryAdapter {
 	urls := make([]string, 0)
 	if uri.Host != "" {
-		urls = append(urls, "http://"+uri.Host)
+		urls = append(urls, "http://" + uri.Host)
 	} else {
 		urls = append(urls, "http://127.0.0.1:4001")
 	}
@@ -48,7 +48,7 @@ type EtcdAdapter struct {
 	client  *etcd.Client
 	client2 *etcd2.Client
 
-	path string
+	path    string
 }
 
 func (r *EtcdAdapter) Ping() error {
@@ -85,7 +85,9 @@ func (r *EtcdAdapter) syncEtcdCluster() {
 func (r *EtcdAdapter) Register(service *bridge.Service) error {
 	r.syncEtcdCluster()
 
-	path := r.path + "/" + service.Name + "/" + service.ID
+	//	path := r.path + "/" + service.Name + "/" + service.ID
+	path := r.getEtcdPath(service)
+
 	port := strconv.Itoa(service.Port)
 	addr := net.JoinHostPort(service.IP, port)
 
@@ -105,7 +107,8 @@ func (r *EtcdAdapter) Register(service *bridge.Service) error {
 func (r *EtcdAdapter) Deregister(service *bridge.Service) error {
 	r.syncEtcdCluster()
 
-	path := r.path + "/" + service.Name + "/" + service.ID
+	//	path := r.path + "/" + service.Name + "/" + service.ID
+	path := r.getEtcdPath(service)
 
 	var err error
 	if r.client != nil {
@@ -126,4 +129,9 @@ func (r *EtcdAdapter) Refresh(service *bridge.Service) error {
 
 func (r *EtcdAdapter) Services() ([]*bridge.Service, error) {
 	return []*bridge.Service{}, nil
+}
+
+func (r *EtcdAdapter) getEtcdPath(service *bridge.Service) string {
+	path := r.path + "/" + service.Name + "/" + service.Origin.ExposedPort + "/" + service.Origin.ContainerID
+	return path
 }
