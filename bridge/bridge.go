@@ -248,9 +248,9 @@ func (b *Bridge) newService(port ServicePort, isgroup bool) *Service {
 	service.Origin = port
 	service.ID = hostname + ":" + container.Name[1:] + ":" + port.ExposedPort
 	service.Name = mapDefault(metadata, "name", defaultName)
-	if isgroup {
-		 service.Name += "-" + port.ExposedPort
-	}
+//	if isgroup {
+//		 service.Name += "-" + port.ExposedPort
+//	}
 	var p int
 	if b.config.Internal == true {
 		service.IP = port.ExposedIP
