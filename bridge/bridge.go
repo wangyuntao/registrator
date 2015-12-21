@@ -3,12 +3,10 @@ package bridge
 import (
 	"errors"
 	"log"
-	"net"
 	"net/url"
 	"os"
 	"path"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -79,10 +77,10 @@ func (b *Bridge) Refresh() {
 		for _, service := range services {
 			err := b.registry.Refresh(service)
 			if err != nil {
-				log.Println("refresh failed:", service.ID, err)
+				log.Println("refresh failed:", service.GetRegisterPath(), err)
 				continue
 			}
-			log.Println("refreshed:", containerId[:12], service.ID)
+			log.Println("refreshed:", containerId[:12], service.GetRegisterPath())
 		}
 	}
 }
@@ -116,46 +114,46 @@ func (b *Bridge) Sync(quiet bool) {
 		}
 	}
 
-	// Clean up services that were registered previously, but aren't
-	// acknowledged within registrator
-	if b.config.Cleanup {
-		log.Println("Cleaning up dangling services")
-
-		extServices, err := b.registry.Services()
-		if err != nil {
-			log.Println("cleanup failed:", err)
-			return
-		}
-
-	Outer:
-		for _, extService := range extServices {
-			matches := serviceIDPattern.FindStringSubmatch(extService.ID)
-			if len(matches) != 3 {
-				// There's no way this was registered by us, so leave it
-				continue
-			}
-			serviceHostname := matches[1]
-			if serviceHostname != Hostname {
-				// ignore because registered on a different host
-				continue
-			}
-			serviceContainerName := matches[2]
-			for _, listing := range b.services {
-				for _, service := range listing {
-					if service.Name == extService.Name && serviceContainerName == service.Origin.container.Name[1:] {
-						continue Outer
-					}
-				}
-			}
-			log.Println("dangling:", extService.ID)
-			err := b.registry.Deregister(extService)
-			if err != nil {
-				log.Println("deregister failed:", extService.ID, err)
-				continue
-			}
-			log.Println(extService.ID, "removed")
-		}
-	}
+//	// Clean up services that were registered previously, but aren't
+//	// acknowledged within registrator
+//	if b.config.Cleanup {
+//		log.Println("Cleaning up dangling services")
+//
+//		extServices, err := b.registry.Services()
+//		if err != nil {
+//			log.Println("cleanup failed:", err)
+//			return
+//		}
+//
+//		Outer:
+//		for _, extService := range extServices {
+//			matches := serviceIDPattern.FindStringSubmatch(extService.ID)
+//			if len(matches) != 3 {
+//				// There's no way this was registered by us, so leave it
+//				continue
+//			}
+//			serviceHostname := matches[1]
+//			if serviceHostname != Hostname {
+//				// ignore because registered on a different host
+//				continue
+//			}
+//			serviceContainerName := matches[2]
+//			for _, listing := range b.services {
+//				for _, service := range listing {
+//					if service.Name == extService.Name && serviceContainerName == service.Origin.container.Name[1:] {
+//						continue Outer
+//					}
+//				}
+//			}
+//			log.Println("dangling:", extService.ID)
+//			err := b.registry.Deregister(extService)
+//			if err != nil {
+//				log.Println("deregister failed:", extService.ID, err)
+//				continue
+//			}
+//			log.Println(extService.ID, "removed")
+//		}
+//	}
 }
 
 func (b *Bridge) add(containerId string, quiet bool) {
@@ -193,6 +191,9 @@ func (b *Bridge) add(containerId string, quiet bool) {
 		return
 	}
 
+	outerPorts := make([]string, 0)
+	innerPorts := make([]string, 0)
+
 	for _, port := range ports {
 		if b.config.Internal != true && port.HostPort == "" {
 			if !quiet {
@@ -200,89 +201,117 @@ func (b *Bridge) add(containerId string, quiet bool) {
 			}
 			continue
 		}
-		service := b.newService(port, len(ports) > 1)
-		if service == nil {
-			if !quiet {
-				log.Println("ignored:", container.ID[:12], "service on port", port.ExposedPort)
-			}
-			continue
-		}
-		err := b.registry.Register(service)
-		if err != nil {
-			log.Println("register failed:", service, err)
-			continue
-		}
-		b.services[container.ID] = append(b.services[container.ID], service)
-		log.Println("added:", container.ID[:12], service.ID)
-	}
-}
+		//		service := b.newService(port, len(ports) > 1)
+		//		if service == nil {
+		//			if !quiet {
+		//				log.Println("ignored:", container.ID[:12], "service on port", port.ExposedPort)
+		//			}
+		//			continue
+		//		}
+		//		err := b.registry.Register(service)
+		//		if err != nil {
+		//			log.Println("register failed:", service, err)
+		//			continue
+		//		}
+		//		b.services[container.ID] = append(b.services[container.ID], service)
+		//		log.Println("added:", container.ID[:12], service.ID)
 
-func (b *Bridge) newService(port ServicePort, isgroup bool) *Service {
-	container := port.container
-	defaultName := strings.Split(path.Base(container.Config.Image), ":")[0]
-	
-	// not sure about this logic. kind of want to remove it.
-	hostname := Hostname
-	if hostname == "" {
-		hostname = port.HostIP
-	}
-	if port.HostIP == "0.0.0.0" {
-		ip, err := net.ResolveIPAddr("ip", hostname)
-		if err == nil {
-			port.HostIP = ip.String()
-		}
+		outerPorts = append(outerPorts, port.HostPort)
+		innerPorts = append(innerPorts, port.ExposedPort)
 	}
 
-	if b.config.HostIp != "" {
-		port.HostIP = b.config.HostIp
-	}
-
-	metadata := serviceMetaData(container.Config, port.ExposedPort)
-
-	ignore := mapDefault(metadata, "ignore", "")
-	if ignore != "" {
-		return nil
+	if len(outerPorts) == 0 {
+		log.Println("ignored:", container.ID[:12], "no published ports")
+		return
 	}
 
 	service := new(Service)
-	service.Origin = port
-	service.ID = hostname + ":" + container.Name[1:] + ":" + port.ExposedPort
-	service.Name = mapDefault(metadata, "name", defaultName)
-//	if isgroup {
-//		 service.Name += "-" + port.ExposedPort
-//	}
-	var p int
-	if b.config.Internal == true {
-		service.IP = port.ExposedIP
-		p, _ = strconv.Atoi(port.ExposedPort)
-	} else {
-		service.IP = port.HostIP
-		p, _ = strconv.Atoi(port.HostPort)
-	}
-	service.Port = p
+	service.ServiceName = strings.Split(path.Base(container.Config.Image), ":")[0]
+	service.serviceID = container.ID
 
-	if port.PortType == "udp" {
-		service.Tags = combineTags(
-			mapDefault(metadata, "tags", ""), b.config.ForceTags, "udp")
-		service.ID = service.ID + ":udp"
-	} else {
-		service.Tags = combineTags(
-			mapDefault(metadata, "tags", ""), b.config.ForceTags)
-	}
+	service.OuterIP = b.config.HostIp
 
-	id := mapDefault(metadata, "id", "")
-	if id != "" {
-		service.ID = id
-	}
+	service.OuterPorts = outerPorts
+	service.InnerPorts = innerPorts
 
-	delete(metadata, "id")
-	delete(metadata, "tags")
-	delete(metadata, "name")
-	service.Attrs = metadata
 	service.TTL = b.config.RefreshTtl
 
-	return service
+	err = b.registry.Register(service)
+	if err != nil {
+		log.Println("register failed:", service, err)
+		return
+	}
+
+	b.services[container.ID] = append(b.services[container.ID], service)
+	log.Println("added:", service.GetRegisterPath())
 }
+//
+//func (b *Bridge) newService(port ServicePort, isgroup bool) *Service {
+//	container := port.container
+//	defaultName := strings.Split(path.Base(container.Config.Image), ":")[0]
+//
+//	// not sure about this logic. kind of want to remove it.
+//	hostname := Hostname
+//	if hostname == "" {
+//		hostname = port.HostIP
+//	}
+//	if port.HostIP == "0.0.0.0" {
+//		ip, err := net.ResolveIPAddr("ip", hostname)
+//		if err == nil {
+//			port.HostIP = ip.String()
+//		}
+//	}
+//
+//	if b.config.HostIp != "" {
+//		port.HostIP = b.config.HostIp
+//	}
+//
+//	metadata := serviceMetaData(container.Config, port.ExposedPort)
+//
+//	ignore := mapDefault(metadata, "ignore", "")
+//	if ignore != "" {
+//		return nil
+//	}
+//
+//	service := new(Service)
+//	service.Origin = port
+//	service.ID = hostname + ":" + container.Name[1:] + ":" + port.ExposedPort
+//	service.Name = mapDefault(metadata, "name", defaultName)
+//	//	if isgroup {
+//	//		 service.Name += "-" + port.ExposedPort
+//	//	}
+//	var p int
+//	if b.config.Internal == true {
+//		service.IP = port.ExposedIP
+//		p, _ = strconv.Atoi(port.ExposedPort)
+//	} else {
+//		service.IP = port.HostIP
+//		p, _ = strconv.Atoi(port.HostPort)
+//	}
+//	service.Port = p
+//
+//	if port.PortType == "udp" {
+//		service.Tags = combineTags(
+//			mapDefault(metadata, "tags", ""), b.config.ForceTags, "udp")
+//		service.ID = service.ID + ":udp"
+//	} else {
+//		service.Tags = combineTags(
+//			mapDefault(metadata, "tags", ""), b.config.ForceTags)
+//	}
+//
+//	id := mapDefault(metadata, "id", "")
+//	if id != "" {
+//		service.ID = id
+//	}
+//
+//	delete(metadata, "id")
+//	delete(metadata, "tags")
+//	delete(metadata, "name")
+//	service.Attrs = metadata
+//	service.TTL = b.config.RefreshTtl
+//
+//	return service
+//}
 
 func (b *Bridge) remove(containerId string, deregister bool) {
 	b.Lock()
@@ -293,10 +322,10 @@ func (b *Bridge) remove(containerId string, deregister bool) {
 			for _, service := range services {
 				err := b.registry.Deregister(service)
 				if err != nil {
-					log.Println("deregister failed:", service.ID, err)
+					log.Println("deregister failed:", service.GetRegisterPath(), err)
 					continue
 				}
-				log.Println("removed:", containerId[:12], service.ID)
+				log.Println("removed:", containerId[:12], service.GetRegisterPath())
 			}
 		}
 		deregisterAll(b.services[containerId])

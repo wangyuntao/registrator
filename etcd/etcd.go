@@ -3,12 +3,9 @@ package etcd
 import (
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
-	"strconv"
-
 	etcd2 "github.com/coreos/go-etcd/etcd"
 	"github.com/wangyuntao/registrator/bridge"
 	etcd "gopkg.in/coreos/go-etcd.v0/etcd"
@@ -86,16 +83,19 @@ func (r *EtcdAdapter) Register(service *bridge.Service) error {
 	r.syncEtcdCluster()
 
 	//	path := r.path + "/" + service.Name + "/" + service.ID
-	path := r.getEtcdPath(service)
+//	path := r.getEtcdPath(service)
+//
+//	port := strconv.Itoa(service.Port)
+//	addr := net.JoinHostPort(service.IP, port)
 
-	port := strconv.Itoa(service.Port)
-	addr := net.JoinHostPort(service.IP, port)
+	path := r.path + service.GetRegisterPath()
+	data := service.GetRegisterData()
 
 	var err error
 	if r.client != nil {
-		_, err = r.client.Set(path, addr, uint64(service.TTL))
+		_, err = r.client.Set(path, data, uint64(service.TTL))
 	} else {
-		_, err = r.client2.Set(path, addr, uint64(service.TTL))
+		_, err = r.client2.Set(path, data, uint64(service.TTL))
 	}
 
 	if err != nil {
@@ -108,7 +108,7 @@ func (r *EtcdAdapter) Deregister(service *bridge.Service) error {
 	r.syncEtcdCluster()
 
 	//	path := r.path + "/" + service.Name + "/" + service.ID
-	path := r.getEtcdPath(service)
+	path := r.path + service.GetRegisterPath()
 
 	var err error
 	if r.client != nil {
@@ -129,9 +129,4 @@ func (r *EtcdAdapter) Refresh(service *bridge.Service) error {
 
 func (r *EtcdAdapter) Services() ([]*bridge.Service, error) {
 	return []*bridge.Service{}, nil
-}
-
-func (r *EtcdAdapter) getEtcdPath(service *bridge.Service) string {
-	path := r.path + "/" + service.Name + "/" + service.Origin.ExposedPort + "/" + service.Origin.ContainerID
-	return path
 }

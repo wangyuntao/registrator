@@ -20,7 +20,7 @@ var Version string
 var versionChecker = usage.NewChecker("registrator", Version)
 
 var hostIp = flag.String("ip", "", "IP for ports mapped to the host")
-var hostIpPrefix = flag.String("ipPrefix", "", "获取以此为前缀的ip")
+var hostIpPrefix = flag.String("ipPrefix", "168.168.", "获取以此为前缀的ip")
 var internal = flag.Bool("internal", false, "Use internal ports instead of published ones")
 var refreshInterval = flag.Int("ttl-refresh", 30, "Frequency with which service TTLs are refreshed")
 var refreshTtl = flag.Int("ttl", 60, "TTL for services (default is no expiry)")

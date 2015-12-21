@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	dockerapi "github.com/fsouza/go-dockerclient"
+	"strings"
 )
 
 type AdapterFactory interface {
@@ -30,16 +31,41 @@ type Config struct {
 }
 
 type Service struct {
-	ID    string
-	Name  string
-	Port  int
-	IP    string
-	Tags  []string
-	Attrs map[string]string
-	TTL   int
+	ServiceName string
+	serviceID   string
 
-	Origin ServicePort
+	OuterIP     string
+
+	OuterPorts  []string
+	InnerPorts  []string
+
+	TTL         int
 }
+
+func (s *Service) GetRegisterPath() string {
+	return "/" + s.ServiceName + "/" + s.serviceID
+}
+
+func (s *Service) GetRegisterData() string {
+	ports := make([]string, len(s.OuterPorts))
+	for i := 0; i < len(s.OuterPorts); i++ {
+		ports[i] = s.OuterPorts[i] + ":" + s.InnerPorts[i]
+	}
+	return s.OuterIP + "," + strings.Join(ports, ",")
+}
+
+//
+//type Service struct {
+//	ID    string
+//	Name  string
+//	Port  int
+//	IP    string
+//	Tags  []string
+//	Attrs map[string]string
+//	TTL   int
+//
+//	Origin ServicePort
+//}
 
 type DeadContainer struct {
 	TTL      int
