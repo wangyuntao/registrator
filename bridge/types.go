@@ -28,12 +28,14 @@ type Config struct {
 	RefreshInterval int
 	DeregisterCheck string
 	Cleanup         bool
+	Tag             string
 }
 
 type Service struct {
 	ServiceName string
 	serviceID   string
 
+	Tag         string
 	OuterIP     string
 
 	OuterPorts  []string
@@ -51,7 +53,7 @@ func (s *Service) GetRegisterData() string {
 	for i := 0; i < len(s.OuterPorts); i++ {
 		ports[i] = s.OuterPorts[i] + ":" + s.InnerPorts[i]
 	}
-	return s.OuterIP + "," + strings.Join(ports, ",")
+	return s.Tag + "," + s.OuterIP + "," + strings.Join(ports, ",")
 }
 
 //

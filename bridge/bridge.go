@@ -114,46 +114,46 @@ func (b *Bridge) Sync(quiet bool) {
 		}
 	}
 
-//	// Clean up services that were registered previously, but aren't
-//	// acknowledged within registrator
-//	if b.config.Cleanup {
-//		log.Println("Cleaning up dangling services")
-//
-//		extServices, err := b.registry.Services()
-//		if err != nil {
-//			log.Println("cleanup failed:", err)
-//			return
-//		}
-//
-//		Outer:
-//		for _, extService := range extServices {
-//			matches := serviceIDPattern.FindStringSubmatch(extService.ID)
-//			if len(matches) != 3 {
-//				// There's no way this was registered by us, so leave it
-//				continue
-//			}
-//			serviceHostname := matches[1]
-//			if serviceHostname != Hostname {
-//				// ignore because registered on a different host
-//				continue
-//			}
-//			serviceContainerName := matches[2]
-//			for _, listing := range b.services {
-//				for _, service := range listing {
-//					if service.Name == extService.Name && serviceContainerName == service.Origin.container.Name[1:] {
-//						continue Outer
-//					}
-//				}
-//			}
-//			log.Println("dangling:", extService.ID)
-//			err := b.registry.Deregister(extService)
-//			if err != nil {
-//				log.Println("deregister failed:", extService.ID, err)
-//				continue
-//			}
-//			log.Println(extService.ID, "removed")
-//		}
-//	}
+	//	// Clean up services that were registered previously, but aren't
+	//	// acknowledged within registrator
+	//	if b.config.Cleanup {
+	//		log.Println("Cleaning up dangling services")
+	//
+	//		extServices, err := b.registry.Services()
+	//		if err != nil {
+	//			log.Println("cleanup failed:", err)
+	//			return
+	//		}
+	//
+	//		Outer:
+	//		for _, extService := range extServices {
+	//			matches := serviceIDPattern.FindStringSubmatch(extService.ID)
+	//			if len(matches) != 3 {
+	//				// There's no way this was registered by us, so leave it
+	//				continue
+	//			}
+	//			serviceHostname := matches[1]
+	//			if serviceHostname != Hostname {
+	//				// ignore because registered on a different host
+	//				continue
+	//			}
+	//			serviceContainerName := matches[2]
+	//			for _, listing := range b.services {
+	//				for _, service := range listing {
+	//					if service.Name == extService.Name && serviceContainerName == service.Origin.container.Name[1:] {
+	//						continue Outer
+	//					}
+	//				}
+	//			}
+	//			log.Println("dangling:", extService.ID)
+	//			err := b.registry.Deregister(extService)
+	//			if err != nil {
+	//				log.Println("deregister failed:", extService.ID, err)
+	//				continue
+	//			}
+	//			log.Println(extService.ID, "removed")
+	//		}
+	//	}
 }
 
 func (b *Bridge) add(containerId string, quiet bool) {
@@ -229,6 +229,7 @@ func (b *Bridge) add(containerId string, quiet bool) {
 	service.ServiceName = strings.Split(path.Base(container.Config.Image), ":")[0]
 	service.serviceID = container.ID
 
+	service.Tag = b.config.Tag
 	service.OuterIP = b.config.HostIp
 
 	service.OuterPorts = outerPorts

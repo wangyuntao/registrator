@@ -31,6 +31,8 @@ var retryAttempts = flag.Int("retry-attempts", -1, "Max retry attempts to establ
 var retryInterval = flag.Int("retry-interval", 2, "Interval between retry-attempts.")
 var cleanup = flag.Bool("cleanup", false, "Remove dangling services")
 
+var tag = flag.String("tag", "", "service tag")
+
 func getopt(name, def string) string {
 	if env := os.Getenv(name); env != "" {
 		return env
@@ -83,6 +85,10 @@ func main() {
 		}
 	}
 
+	if (*tag == "") {
+		log.Fatal("必须指定tag")
+	}
+
 	if (*refreshTtl == 0 && *refreshInterval > 0) || (*refreshTtl > 0 && *refreshInterval == 0) {
 		assert(errors.New("-ttl and -ttl-refresh must be specified together or not at all"))
 	} else if *refreshTtl > 0 && *refreshTtl <= *refreshInterval {
@@ -113,6 +119,7 @@ func main() {
 		RefreshInterval: *refreshInterval,
 		DeregisterCheck: *deregister,
 		Cleanup:         *cleanup,
+		Tag:             *tag,
 	})
 
 	assert(err)
